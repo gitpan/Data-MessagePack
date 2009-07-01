@@ -1,0 +1,43 @@
+use inc::Module::Install;
+name 'Data-MessagePack';
+all_from 'lib/Data/MessagePack.pm';
+
+perl_version '5.008005';
+license 'perl';
+can_cc or die "This module requires a C compiler";
+
+my $ccflags = '.';
+
+makemaker_args(
+    OBJECT => '$(O_FILES)',
+    LIBS => [''],
+    CCFLAGS => $ccflags,
+    clean => {
+        FILES => q{
+            *.stackdump
+            *.gcov *.gcda *.gcno
+            *.out
+            nytprof
+            cover_db
+        },
+    },
+);
+
+tests 't/*.t';
+author_tests('xt');
+
+# copy modules
+if ($Module::Install::AUTHOR && -d File::Spec->catfile('..', 'msgpack')) {
+    mkdir 'msgpack' unless -d 'msgpack';
+    require File::Copy;
+    for my $src (<../msgpack/*.h>) {
+        File::Copy::copy($src, 'msgpack/') or die "copy failed: $!";
+    }
+}
+
+auto_set_repository;
+build_requires 'Test::More';
+use_test_base;
+auto_include;
+WriteAll;
+
