@@ -4,7 +4,7 @@ use warnings;
 use XSLoader;
 use 5.008001;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 XSLoader::load(__PACKAGE__, $VERSION);
 
@@ -23,6 +23,16 @@ Data::MessagePack - messagepack
 =head1 DESCRIPTION
 
 Data::MessagePack is a binary packer for perl.
+
+=head1 Configuration Variables
+
+=over 4
+
+=item $Data::MessagePack::PreferInteger
+
+Pack the string as int when the value looks like int(EXPERIMENTAL).
+
+=back
 
 =head1 AUTHORS
 

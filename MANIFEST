@@ -37,6 +37,7 @@ t/01_pack.t
 t/02_unpack.t
 t/03_stream_unpack.t
 t/04_invert.t
+t/05_preferred_int.t
 t/data.pl
 t/Util.pm
 unpack.c
