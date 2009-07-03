@@ -18,7 +18,7 @@ sub _carp {
     return warn @_, " at $file line $line\n";
 }
 
-our $VERSION = '0.89_01';
+our $VERSION = '0.90';
 $VERSION = eval $VERSION;    ## no critic (BuiltinFunctions::ProhibitStringyEval)
 
 use Test::Builder::Module;
@@ -34,11 +34,10 @@ our @EXPORT = qw(ok use_ok require_ok
   done_testing
   can_ok isa_ok new_ok
   diag note explain
-  subtest
   BAIL_OUT
 );
 
-#line 164
+#line 163
 
 sub plan {
     my $tb = Test::More->builder;
@@ -72,7 +71,7 @@ sub import_extra {
     return;
 }
 
-#line 217
+#line 216
 
 sub done_testing {
     my $tb = Test::More->builder;
@@ -246,16 +245,7 @@ sub new_ok {
     return $obj;
 }
 
-#line 718
-
-sub subtest($&) {
-    my ($name, $subtests) = @_;
-
-    my $tb = Test::More->builder;
-    return $tb->subtest(@_);
-}
-
-#line 742
+#line 690
 
 sub pass (;$) {
     my $tb = Test::More->builder;
@@ -269,7 +259,7 @@ sub fail (;$) {
     return $tb->ok( 0, @_ );
 }
 
-#line 805
+#line 753
 
 sub use_ok ($;@) {
     my( $module, @imports ) = @_;
@@ -331,7 +321,7 @@ sub _eval {
     return( $eval_result, $eval_error );
 }
 
-#line 874
+#line 822
 
 sub require_ok ($) {
     my($module) = shift;
@@ -375,7 +365,7 @@ sub _is_module_name {
     return $module =~ /^[a-zA-Z]\w*$/ ? 1 : 0;
 }
 
-#line 951
+#line 899
 
 our( @Data_Stack, %Refs_Seen );
 my $DNE = bless [], 'Does::Not::Exist';
@@ -482,7 +472,7 @@ sub _type {
     return '';
 }
 
-#line 1111
+#line 1059
 
 sub diag {
     return Test::More->builder->diag(@_);
@@ -492,13 +482,13 @@ sub note {
     return Test::More->builder->note(@_);
 }
 
-#line 1137
+#line 1085
 
 sub explain {
     return Test::More->builder->explain(@_);
 }
 
-#line 1203
+#line 1151
 
 ## no critic (Subroutines::RequireFinalReturn)
 sub skip {
@@ -526,7 +516,7 @@ sub skip {
     last SKIP;
 }
 
-#line 1290
+#line 1238
 
 sub todo_skip {
     my( $why, $how_many ) = @_;
@@ -547,7 +537,7 @@ sub todo_skip {
     last TODO;
 }
 
-#line 1345
+#line 1293
 
 sub BAIL_OUT {
     my $reason = shift;
@@ -556,7 +546,7 @@ sub BAIL_OUT {
     $tb->BAIL_OUT($reason);
 }
 
-#line 1384
+#line 1332
 
 #'#
 sub eq_array {
@@ -682,7 +672,7 @@ WHOA
     }
 }
 
-#line 1517
+#line 1465
 
 sub eq_hash {
     local @Data_Stack = ();
@@ -715,7 +705,7 @@ sub _eq_hash {
     return $ok;
 }
 
-#line 1574
+#line 1522
 
 sub eq_set {
     my( $a1, $a2 ) = @_;
@@ -740,6 +730,6 @@ sub eq_set {
     );
 }
 
-#line 1787
+#line 1735
 
 1;
