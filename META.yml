@@ -25,4 +25,4 @@ requires:
 resources:
   license: http://dev.perl.org/licenses/
   repository: git://git.sourceforge.jp//gitroot/msgpack/msgpack.git
-version: 0.06
+version: 0.07
