@@ -4,8 +4,13 @@ use warnings;
 use XSLoader;
 use 5.008001;
 
-our $VERSION = '0.07';
+our $VERSION = '0.08';
 our $PreferInteger = 0;
+
+our $true  = do { bless \(my $dummy = 1), "Data::MessagePack::Boolean" };
+our $false = do { bless \(my $dummy = 0), "Data::MessagePack::Boolean" };
+sub true  () { $true  }
+sub false () { $false }
 
 XSLoader::load(__PACKAGE__, $VERSION);
 
