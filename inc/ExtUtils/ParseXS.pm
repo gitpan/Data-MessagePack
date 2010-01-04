@@ -19,7 +19,8 @@ my(@XSStack);	# Stack of conditionals and INCLUDEs
 my($XSS_work_idx, $cpp_next_tmp);
 
 use vars qw($VERSION);
-$VERSION = '2.2002';
+$VERSION = '2.21';
+$VERSION = eval $VERSION if $VERSION =~ /_/;
 
 use vars qw(%input_expr %output_expr $ProtoUsed @InitFileCode $FH $proto_re $Overload $errors $Fallback
 	    $cplusplus $hiertype $WantPrototypes $WantVersionChk $except $WantLineNumbers
@@ -211,7 +212,9 @@ sub process_file {
   $size = qr[,\s* (??{ $bal }) ]x; # Third arg (to setpvn)
 
   foreach my $key (keys %output_expr) {
-    BEGIN { $^H |= 0x00200000 }; # Equivalent to: use re 'eval', but hardcoded so we can compile re.xs
+    # We can still bootstrap compile 're', because in code re.pm is 
+    # available to miniperl, and does not attempt to load the XS code.
+    use re 'eval';
 
     my ($t, $with_size, $arg, $sarg) =
       ($output_expr{$key} =~
@@ -354,6 +357,15 @@ S_croak_xs_usage(pTHX_ const CV *const cv, const char *const params)
 
 #endif
 
+/* NOTE: the prototype of newXSproto() is different in versions of perls,
+ * so we define a portable version of newXSproto()
+ */
+#ifdef newXS_flags
+#define newXSproto_portable(name, c_impl, file, proto) newXS_flags(name, c_impl, file, proto, 0)
+#else
+#define newXSproto_portable(name, c_impl, file, proto) (PL_Sv=(SV*)newXS(name, c_impl, file), sv_setpv(PL_Sv, proto), (CV*)PL_Sv)
+#endif /* !defined(newXS_flags) */
+
 EOF
 
   print 'ExtUtils::ParseXS::CountLines'->end_marker, "\n" if $WantLineNumbers;
@@ -437,7 +449,7 @@ EOF
     $xsreturn = 0;
 
     $_ = shift(@line);
-    while (my $kwd = check_keyword("REQUIRE|PROTOTYPES|FALLBACK|VERSIONCHECK|INCLUDE")) {
+    while (my $kwd = check_keyword("REQUIRE|PROTOTYPES|FALLBACK|VERSIONCHECK|INCLUDE|SCOPE")) {
       &{"${kwd}_handler"}() ;
       next PARAGRAPH unless @line ;
       $_ = shift(@line);
@@ -556,7 +568,6 @@ EOF
       my $arg0 = ((defined($static) or $func_name eq 'new')
 		  ? "CLASS" : "THIS");
       unshift(@args, $arg0);
-      ($report_args = "$arg0, $report_args") =~ s/^\w+, $/$arg0/;
     }
     my $extra_args = 0;
     @args_num = ();
@@ -848,7 +859,7 @@ EOF
 	next;
       }
       last if $_ eq "$END:";
-      death(/^$BLOCK_re/o ? "Misplaced `$1:'" : "Junk at end of function");
+      death(/^$BLOCK_re/o ? "Misplaced `$1:'" : "Junk at end of function ($_)");
     }
     
     print Q(<<"EOF") if $except;
@@ -871,12 +882,12 @@ EOF
 #
 EOF
 
-    my $newXS = "newXS" ;
-    my $proto = "" ;
+    our $newXS = "newXS" ;
+    our $proto = "" ;
     
     # Build the prototype string for the xsub
     if ($ProtoThisXSUB) {
-      $newXS = "newXSproto";
+      $newXS = "newXSproto_portable";
       
       if ($ProtoThisXSUB eq 2) {
 	# User has specified empty prototype
@@ -898,23 +909,20 @@ EOF
       }
       $proto = qq{, "$proto"};
     }
-    
+
     if (%XsubAliases) {
       $XsubAliases{$pname} = 0
 	unless defined $XsubAliases{$pname} ;
       while ( ($name, $value) = each %XsubAliases) {
 	push(@InitFileCode, Q(<<"EOF"));
-#        cv = newXS(\"$name\", XS_$Full_func_name, file);
+#        cv = ${newXS}(\"$name\", XS_$Full_func_name, file$proto);
 #        XSANY.any_i32 = $value ;
-EOF
-	push(@InitFileCode, Q(<<"EOF")) if $proto;
-#        sv_setpv((SV*)cv$proto) ;
 EOF
       }
     }
     elsif (@Attributes) {
       push(@InitFileCode, Q(<<"EOF"));
-#        cv = newXS(\"$pname\", XS_$Full_func_name, file);
+#        cv = ${newXS}(\"$pname\", XS_$Full_func_name, file$proto);
 #        apply_attrs_string("$Package", cv, "@Attributes", 0);
 EOF
     }
@@ -922,17 +930,14 @@ EOF
       while ( ($name, $value) = each %Interfaces) {
 	$name = "$Package\::$name" unless $name =~ /::/;
 	push(@InitFileCode, Q(<<"EOF"));
-#        cv = newXS(\"$name\", XS_$Full_func_name, file);
+#        cv = ${newXS}(\"$name\", XS_$Full_func_name, file$proto);
 #        $interface_macro_set(cv,$value) ;
-EOF
-	push(@InitFileCode, Q(<<"EOF")) if $proto;
-#        sv_setpv((SV*)cv$proto) ;
 EOF
       }
     }
     else {
       push(@InitFileCode,
-	   "        ${newXS}(\"$pname\", XS_$Full_func_name, file$proto);\n");
+	   "        (void)${newXS}(\"$pname\", XS_$Full_func_name, file$proto);\n");
     }
   }
 
@@ -951,7 +956,7 @@ EOF
     /* Making a sub named "${Package}::()" allows the package */
     /* to be findable via fetchmethod(), and causes */
     /* overload::Overloaded("${Package}") to return true. */
-    newXS("${Package}::()", XS_${Packid}_nil, file$proto);
+    (void)${newXS}("${Package}::()", XS_${Packid}_nil, file$proto);
 MAKE_FETCHMETHOD_WORK
   }
 
@@ -977,10 +982,17 @@ EOF
 ##endif
 EOF
 
+  #Under 5.8.x and lower, newXS is declared in proto.h as expecting a non-const
+  #file name argument. If the wrong qualifier is used, it causes breakage with
+  #C++ compilers and warnings with recent gcc.
   #-Wall: if there is no $Full_func_name there are no xsubs in this .xs
   #so `file' is unused
   print Q(<<"EOF") if $Full_func_name;
+##if (PERL_REVISION == 5 && PERL_VERSION < 9)
+#    char* file = __FILE__;
+##else
 #    const char* file = __FILE__;
+##endif
 EOF
 
   print Q("#\n");
@@ -1027,12 +1039,12 @@ EOF
     print "\n    /* End of Initialisation Section */\n\n" ;
   }
 
-  if ($] >= 5.009) {
-    print <<'EOF';
-    if (PL_unitcheckav)
-         call_list(PL_scopestack_ix, PL_unitcheckav);
+  print Q(<<'EOF');
+##if (PERL_REVISION == 5 && PERL_VERSION >= 9)
+#  if (PL_unitcheckav)
+#       call_list(PL_scopestack_ix, PL_unitcheckav);
+##endif
 EOF
-  }
 
   print Q(<<"EOF");
 #    XSRETURN_YES;
@@ -1161,7 +1173,7 @@ sub INPUT_handler {
       print "\tSTRLEN\tSTRLEN_length_of_$2;\n";
       $lengthof{$2} = $name;
       # $islengthof{$name} = $1;
-      $deferred .= "\n\tXSauto_length_of_$2 = STRLEN_length_of_$2;";
+      $deferred .= "\n\tXSauto_length_of_$2 = STRLEN_length_of_$2;\n";
     }
 
     # check for optional initialisation code
@@ -1353,7 +1365,7 @@ sub OVERLOAD_handler()
       $Overload = 1 unless $Overload;
       my $overload = "$Package\::(".$1 ;
       push(@InitFileCode,
-	   "        newXS(\"$overload\", XS_$Full_func_name, file$proto);\n");
+	   "        (void)${newXS}(\"$overload\", XS_$Full_func_name, file$proto);\n");
     }
   }  
 }
@@ -1447,16 +1459,10 @@ sub SCOPE_handler ()
     death("Error: Only 1 SCOPE declaration allowed per xsub")
       if $scope_in_this_xsub ++ ;
 
-    for (;  !/^$BLOCK_re/o;  $_ = shift(@line)) {
-      next unless /\S/;
-      TrimWhitespace($_) ;
-      if ($_ =~ /^DISABLE/i) {
-	$ScopeThisXSUB = 0
-      } elsif ($_ =~ /^ENABLE/i) {
-	$ScopeThisXSUB = 1
-      }
-    }
-
+    TrimWhitespace($_);
+    death ("Error: SCOPE: ENABLE/DISABLE")
+        unless /^(ENABLE|DISABLE)\b/i;
+    $ScopeThisXSUB = ( uc($1) eq 'ENABLE' );
   }
 
 sub PROTOTYPES_handler ()
@@ -1517,7 +1523,8 @@ sub INCLUDE_handler ()
 #
 EOF
 
-    $filepathname = $filename = $_ ;
+    $filename = $_ ;
+    $filepathname = "$dir/$filename";
 
     # Prime the pump by reading the first
     # non-blank line
@@ -1952,4 +1959,4 @@ sub end_marker {
 1;
 __END__
 
-#line 2091
+#line 2111

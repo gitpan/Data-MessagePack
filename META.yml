@@ -3,13 +3,12 @@ abstract: messagepack
 author:
   - 'Tokuhiro Matsuno'
 build_requires:
-  Devel::PPPort: 3.19
   ExtUtils::MakeMaker: 6.42
-  ExtUtils::ParseXS: 2.2
+  ExtUtils::ParseXS: 2.21
   Test::More: 0
-  XSLoader: 0.08
 configure_requires:
   Devel::PPPort: 3.19
+  ExtUtils::CBuilder: 0.21
   ExtUtils::MakeMaker: 6.42
 distribution_type: module
 generated_by: 'Module::Install version 0.91'
@@ -25,8 +24,8 @@ no_index:
     - xt
 requires:
   Filter::Util::Call: 0
+  XSLoader: 0.1
   perl: 5.8.5
 resources:
   license: http://dev.perl.org/licenses/
-  repository: git://git.sourceforge.jp//gitroot/msgpack/msgpack.git
-version: 0.08
+version: 0.09

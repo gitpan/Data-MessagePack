@@ -4,7 +4,7 @@ use warnings;
 use XSLoader;
 use 5.008001;
 
-our $VERSION = '0.08';
+our $VERSION = '0.09';
 our $PreferInteger = 0;
 
 our $true  = do { bless \(my $dummy = 1), "Data::MessagePack::Boolean" };
@@ -43,6 +43,16 @@ Pack the string as int when the value looks like int(EXPERIMENTAL).
 =head1 AUTHORS
 
 Tokuhiro Matsuno
+
+=head1 THANKS TO
+
+Jun Kuriyama
+
+=head1 LICENSE
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.
+
 
 =head1 SEE ALSO
 

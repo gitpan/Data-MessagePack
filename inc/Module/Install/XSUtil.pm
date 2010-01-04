@@ -3,7 +3,7 @@ package Module::Install::XSUtil;
 
 use 5.005_03;
 
-$VERSION = '0.04';
+$VERSION = '0.19';
 
 use Module::Install::Base;
 @ISA     = qw(Module::Install::Base);
@@ -17,420 +17,517 @@ use File::Find;
 
 use constant _VERBOSE => $ENV{MI_VERBOSE} ? 1 : 0;
 
+my %ConfigureRequires = (
+    'ExtUtils::CBuilder' => 0.21, # for have_compiler()
+);
+
 my %BuildRequires = (
-	'Devel::PPPort'     => 3.19,
-	'ExtUtils::ParseXS' => 2.20,
-	'XSLoader'          => 0.08,
+    'ExtUtils::ParseXS' => 2.21, # the newer, the better
+);
+
+my %Requires = (
+    'XSLoader' => 0.10, # the newer, the better
 );
 
 my %ToInstall;
 
 sub _verbose{
-	print STDERR q{# }, @_, "\n";
+    print STDERR q{# }, @_, "\n";
+}
+
+sub _xs_debugging{
+    return $ENV{XS_DEBUG} || scalar( grep{ $_ eq '-g' } @ARGV );
 }
 
 sub _xs_initialize{
-	my($self) = @_;
+    my($self) = @_;
 
-	unless($self->{xsu_initialized}){
+    unless($self->{xsu_initialized}){
+        $self->{xsu_initialized} = 1;
 
-		$self->requires_external_cc();
-		$self->build_requires(%BuildRequires);
-		$self->makemaker_args(OBJECT => '$(O_FILES)');
+        if(!$self->cc_available()){
+            print "This package requires a C compiler, but it's not available.\n";
+            exit(0);
+        }
 
-		$self->{xsu_initialized} = 1;
-	}
-	return;
+        $self->configure_requires(%ConfigureRequires);
+        $self->build_requires(%BuildRequires);
+        $self->requires(%Requires);
+
+        $self->makemaker_args(OBJECT => '$(O_FILES)');
+        $self->clean_files('$(O_FILES)');
+
+        if($self->_xs_debugging()){
+            # override $Config{optimize}
+            if(_is_msvc()){
+                $self->makemaker_args(OPTIMIZE => '-Zi');
+            }
+            else{
+                $self->makemaker_args(OPTIMIZE => '-g');
+            }
+            $self->cc_define('-DXS_ASSERT');
+        }
+    }
+    return;
+}
+
+# GNU C Compiler
+sub _is_gcc{
+    return $Config{gccversion};
+}
+
+# Microsoft Visual C++ Compiler (cl.exe)
+sub _is_msvc{
+    return $Config{cc} =~ /\A cl \b /xmsi;
+}
+
+{
+    my $cc_available;
+
+    sub cc_available {
+        return $cc_available if defined $cc_available;
+
+        foreach my $arg(@ARGV){
+            if($arg eq '--pp'){
+                return $cc_available = 0;
+            }
+            elsif($arg eq '--xs'){
+                return $cc_available = 1;
+            }
+        }
+
+        local $@;
+        return $cc_available = eval{
+            require ExtUtils::CBuilder;
+            ExtUtils::CBuilder->new(quiet => 1)->have_compiler();
+        } ? 1 : 0;
+    }
 }
 
 sub use_ppport{
-	my($self, $dppp_version) = @_;
+    my($self, $dppp_version) = @_;
 
-	$self->_xs_initialize();
+    $self->_xs_initialize();
 
-	my $filename = 'ppport.h';
+    my $filename = 'ppport.h';
 
-	$dppp_version ||= 0;
-	$self->configure_requires('Devel::PPPort' => $dppp_version);
+    $dppp_version ||= 0;
+    $self->configure_requires('Devel::PPPort' => $dppp_version);
 
-	print "Writing $filename\n";
+    print "Writing $filename\n";
 
-	eval qq{
-		use Devel::PPPort;
-		Devel::PPPort::WriteFile(q{$filename});
-		1;
-	} or warn("Cannot create $filename: $@");
+    my $e = do{
+        local $@;
+        eval qq{
+            use Devel::PPPort;
+            Devel::PPPort::WriteFile(q{$filename});
+        };
+        $@;
+    };
+    if($e){
+         print "Cannot create $filename because: $@\n";
+    }
 
-	
-	if(-e $filename){
-		$self->clean_files($filename);
-		$self->cc_append_to_ccflags('-DUSE_PPPORT');
-		$self->cc_append_to_inc('.');
-	}
-	return;
+    if(-e $filename){
+        $self->clean_files($filename);
+        $self->cc_define('-DUSE_PPPORT');
+        $self->cc_append_to_inc('.');
+    }
+    return;
 }
 
 sub cc_warnings{
-	my($self) = @_;
+    my($self) = @_;
 
-	$self->_xs_initialize();
+    $self->_xs_initialize();
 
-	if($Config{gccversion}){
-		$self->cc_append_to_ccflags(qw(-Wall -Wextra));
-	}
-	elsif($Config{cc} =~ /\A cl \b /xmsi){
-		# Microsoft Visual C++ Compiler
-		$self->cc_append_to_ccflags('-W3');
-	}
-	else{
-		# TODO: support other compilers
-	}
+    if(_is_gcc()){
+        # Note: MSVC++ doesn't support C99, so -Wdeclaration-after-statement helps ensure C89 specs.
+        $self->cc_append_to_ccflags(qw(-Wall));
 
-	return;
+        no warnings 'numeric';
+        if($Config{gccversion} >= 4.00){
+            $self->cc_append_to_ccflags('-Wextra -Wdeclaration-after-statement');
+        }
+        else{
+            $self->cc_append_to_ccflags('-W');
+        }
+    }
+    elsif(_is_msvc()){
+        $self->cc_append_to_ccflags('-W3');
+    }
+    else{
+        # TODO: support other compilers
+    }
+
+    return;
 }
 
+
 sub cc_append_to_inc{
-	my($self, @dirs) = @_;
+    my($self, @dirs) = @_;
 
-	$self->_xs_initialize();
+    $self->_xs_initialize();
 
-	for my $dir(@dirs){
-		unless(-d $dir){
-			warn("'$dir' not found: $!\n");
-			exit;
-		}
+    for my $dir(@dirs){
+        unless(-d $dir){
+            warn("'$dir' not found: $!\n");
+            exit;
+        }
 
-		_verbose "inc: -I$dir" if _VERBOSE;
-	}
+        _verbose "inc: -I$dir" if _VERBOSE;
+    }
 
-	my $mm    = $self->makemaker_args;
-	my $paths = join q{ }, map{ qq{"-I$_"} } @dirs;
+    my $mm    = $self->makemaker_args;
+    my $paths = join q{ }, map{ s{\\}{\\\\}g; qq{"-I$_"} } @dirs;
 
-	if($mm->{INC}){
-		$mm->{INC} .=  q{ } . $paths;
-	}
-	else{
-		$mm->{INC}  = $paths;
-	}
-	return;
+    if($mm->{INC}){
+        $mm->{INC} .=  q{ } . $paths;
+    }
+    else{
+        $mm->{INC}  = $paths;
+    }
+    return;
 }
 
 sub cc_append_to_libs{
-	my($self, @libs) = @_;
+    my($self, @libs) = @_;
 
-	$self->_xs_initialize();
+    $self->_xs_initialize();
 
-	my $mm = $self->makemaker_args;
+    my $mm = $self->makemaker_args;
 
-	my $libs = join q{ }, map{
-		my($name, $dir) = ref($_) eq 'ARRAY' ? @{$_} : ($_, undef);
+    my $libs = join q{ }, map{
+        my($name, $dir) = ref($_) eq 'ARRAY' ? @{$_} : ($_, undef);
 
-		$dir = qq{-L$dir } if defined $dir;
-		_verbose "libs: $dir-l$name" if _VERBOSE;
-		$dir . qq{-l$name};
-	} @libs;
+        $dir = qq{-L$dir } if defined $dir;
+        _verbose "libs: $dir-l$name" if _VERBOSE;
+        $dir . qq{-l$name};
+    } @libs;
 
-	if($mm->{LIBS}){
-		$mm->{LIBS} .= q{ } . $libs;
-	}
-	else{
-		$mm->{LIBS} = $libs;
-	}
+    if($mm->{LIBS}){
+        $mm->{LIBS} .= q{ } . $libs;
+    }
+    else{
+        $mm->{LIBS} = $libs;
+    }
 
-	return;
+    return;
 }
 
 sub cc_append_to_ccflags{
-	my($self, @ccflags) = @_;
+    my($self, @ccflags) = @_;
 
-	$self->_xs_initialize();
+    $self->_xs_initialize();
 
-	my $mm    = $self->makemaker_args;
-	
-	$mm->{CCFLAGS} ||= $Config{ccflags};
-	$mm->{CCFLAGS}  .= q{ } . join q{ }, @ccflags;
-	return;
+    my $mm    = $self->makemaker_args;
+
+    $mm->{CCFLAGS} ||= $Config{ccflags};
+    $mm->{CCFLAGS}  .= q{ } . join q{ }, @ccflags;
+    return;
+}
+
+sub cc_define{
+    my($self, @defines) = @_;
+
+    $self->_xs_initialize();
+
+    my $mm = $self->makemaker_args;
+    if(exists $mm->{DEFINE}){
+        $mm->{DEFINE} .= q{ } . join q{ }, @defines;
+    }
+    else{
+        $mm->{DEFINE}  = join q{ }, @defines;
+    }
+    return;
 }
 
 sub requires_xs{
-	my $self  = shift;
+    my $self  = shift;
 
-	return $self->requires() unless @_;
+    return $self->requires() unless @_;
 
-	$self->_xs_initialize();
+    $self->_xs_initialize();
 
-	my %added = $self->requires(@_);
-	my(@inc, @libs);
+    my %added = $self->requires(@_);
+    my(@inc, @libs);
 
-	while(my $module = each %added){
-		my $mod_basedir = File::Spec->join(split /::/, $module);
+    my $rx_lib    = qr{ \. (?: lib | a) \z}xmsi;
+    my $rx_dll    = qr{ \. dll          \z}xmsi; # for Cygwin
 
-		SCAN_INC: foreach my $inc_dir(@INC){
-			my $packlist = File::Spec->join($inc_dir, 'auto', $mod_basedir, '.packlist');
-			
-			my $rx_header = qr{\A (.+ $mod_basedir) .+ \.h \z}xmsi;
-			my $rx_lib    = qr{\A (.+ $mod_basedir) .+ (\w+) \. (?: lib | dll | a) \z}xmsi;
+    while(my $module = each %added){
+        my $mod_basedir = File::Spec->join(split /::/, $module);
+        my $rx_header = qr{\A ( .+ \Q$mod_basedir\E ) .+ \. h(?:pp)?     \z}xmsi;
 
-			if(-e $packlist){
-				local *IN;
-				open IN, "< $packlist" or die("Cannot open '$packlist' for reading: $!\n");
-				while(<IN>){
-					chomp;
+        SCAN_INC: foreach my $inc_dir(@INC){
+            my @dirs = grep{ -e } File::Spec->join($inc_dir, 'auto', $mod_basedir), File::Spec->join($inc_dir, $mod_basedir);
 
-					if($_ =~ $rx_header){
-						push @inc, $1
-					}
-					elsif($_ =~ $rx_lib){
-						push @libs, [$2, $1];
-					}
-				}
+            next SCAN_INC unless @dirs;
 
-				close IN;
+            my $n_inc = scalar @inc;
+            find(sub{
+                if(my($incdir) = $File::Find::name =~ $rx_header){
+                    push @inc, $incdir;
+                }
+                elsif($File::Find::name =~ $rx_lib){
+                    my($libname) = $_ =~ /\A (?:lib)? (\w+) /xmsi;
+                    push @libs, [$libname, $File::Find::dir];
+                }
+                elsif($File::Find::name =~ $rx_dll){
+                    # XXX: hack for Cygwin
+                    my $mm = $self->makemaker_args;
+                    $mm->{macro}->{PERL_ARCHIVE_AFTER} ||= '';
+                    $mm->{macro}->{PERL_ARCHIVE_AFTER}  .= ' ' . $File::Find::name;
+                }
+            }, @dirs);
 
-				last SCAN_INC;
-			}
-			elsif($inc_dir =~ /\b blib \b/xmsi){
-				print "scanning $inc_dir\n";
-				my $n_inc = scalar @inc;
+            if($n_inc != scalar @inc){
+                last SCAN_INC;
+            }
+        }
+    }
 
-				find(sub{
-					if($File::Find::name =~ $rx_header){
-						push @inc, $1;
-					}
-					elsif($File::Find::name =~ $rx_lib){
-						push @libs, [$2, 1];
-					}
-				}, File::Spec->join($inc_dir, 'auto', $mod_basedir), File::Spec->join($inc_dir, $mod_basedir));
+    my %uniq = ();
+    $self->cc_append_to_inc (grep{ !$uniq{ $_ }++ } @inc);
 
-				if($n_inc != scalar @inc){
-					last SCAN_INC;
-				}
-			}
-		}
-	}
+    %uniq = ();
+    $self->cc_append_to_libs(grep{ !$uniq{ $_->[0] }++ } @libs);
 
-	my %uniq = ();
-	$self->cc_append_to_inc (grep{ !$uniq{ $_ }++ } @inc);
-
-	%uniq = ();
-	$self->cc_append_to_libs(grep{ !$uniq{ $_->[0] }++ } @libs);
-
-	return %added;
+    return %added;
 }
 
 sub cc_src_paths{
-	my($self, @dirs) = @_;
+    my($self, @dirs) = @_;
 
-	$self->_xs_initialize();
+    $self->_xs_initialize();
 
-	my $mm     = $self->makemaker_args;
+    return unless @dirs;
 
-	my $XS_ref = $mm->{XS} ||= {};
-	my $C_ref  = $mm->{C}  ||= [];
+    my $mm     = $self->makemaker_args;
 
-	my $_obj   = $Config{_o};
+    my $XS_ref = $mm->{XS} ||= {};
+    my $C_ref  = $mm->{C}  ||= [];
 
-	my @src_files;
-	find(sub{
-		if(/ \. (?: xs | c (?: c | pp | xx )? ) \z/xmsi){ # *.{xs, c, cc, cpp, cxx}
-			push @src_files, $File::Find::name;
-		}
-	}, @dirs);
+    my $_obj   = $Config{_o};
 
-	foreach my $src_file(@src_files){
-		my $c = $src_file;
-		if($c =~ s/ \.xs \z/.c/xms){
-			$XS_ref->{$src_file} = $c;
+    my @src_files;
+    find(sub{
+        if(/ \. (?: xs | c (?: c | pp | xx )? ) \z/xmsi){ # *.{xs, c, cc, cpp, cxx}
+            push @src_files, $File::Find::name;
+        }
+    }, @dirs);
 
-			_verbose "xs: $src_file" if _VERBOSE;
-		}
-		else{
-			_verbose "c: $c" if _VERBOSE;
-		}
+    foreach my $src_file(@src_files){
+        my $c = $src_file;
+        if($c =~ s/ \.xs \z/.c/xms){
+            $XS_ref->{$src_file} = $c;
 
-		push @{$C_ref}, $c;
-	}
+            _verbose "xs: $src_file" if _VERBOSE;
+        }
+        else{
+            _verbose "c: $c" if _VERBOSE;
+        }
 
-	$self->cc_append_to_inc('.');
+        push @{$C_ref}, $c unless grep{ $_ eq $c } @{$C_ref};
+    }
 
-	return;
+    $self->cc_append_to_inc('.');
+
+    return;
 }
 
 sub cc_include_paths{
-	my($self, @dirs) = @_;
+    my($self, @dirs) = @_;
 
-	$self->_xs_initialize();
+    $self->_xs_initialize();
 
-	push @{ $self->{xsu_include_paths} ||= []}, @dirs;
+    push @{ $self->{xsu_include_paths} ||= []}, @dirs;
 
-	my $h_map = $self->{xsu_header_map} ||= {};
+    my $h_map = $self->{xsu_header_map} ||= {};
 
     foreach my $dir(@dirs){
-		my $prefix = quotemeta( File::Spec->catfile($dir, '') );
-		find(sub{
-			return unless / \.h \z/xms;
+        my $prefix = quotemeta( File::Spec->catfile($dir, '') );
+        find(sub{
+            return unless / \.h(?:pp)? \z/xms;
 
-			(my $h_file = $File::Find::name) =~ s/ \A $prefix //xms;
-			$h_map->{$h_file} = $File::Find::name;
-		}, $dir);
-	}
+            (my $h_file = $File::Find::name) =~ s/ \A $prefix //xms;
+            $h_map->{$h_file} = $File::Find::name;
+        }, $dir);
+    }
 
-	$self->cc_append_to_inc(@dirs);
+    $self->cc_append_to_inc(@dirs);
 
-	return;
+    return;
 }
 
 sub install_headers{
-	my $self    = shift;
-	my $h_files;
-	if(@_ == 0){
-		$h_files = $self->{xsu_header_map} or die "install_headers: cc_include_paths not specified.\n";
-	}
-	elsif(@_ == 1 && ref($_[0]) eq 'HASH'){
-		$h_files = $_[0];
-	}
-	else{
-		$h_files = +{ map{ $_ => undef } @_ };
-	}
+    my $self    = shift;
+    my $h_files;
+    if(@_ == 0){
+        $h_files = $self->{xsu_header_map} or die "install_headers: cc_include_paths not specified.\n";
+    }
+    elsif(@_ == 1 && ref($_[0]) eq 'HASH'){
+        $h_files = $_[0];
+    }
+    else{
+        $h_files = +{ map{ $_ => undef } @_ };
+    }
 
-	$self->_xs_initialize();
+    $self->_xs_initialize();
 
-	my @not_found;
-	my $h_map = $self->{xsu_header_map} || {};
+    my @not_found;
+    my $h_map = $self->{xsu_header_map} || {};
 
-	while(my($ident, $path) = each %{$h_files}){
-		$path ||= $h_map->{$ident} || File::Spec->join('.', $ident);
+    while(my($ident, $path) = each %{$h_files}){
+        $path ||= $h_map->{$ident} || File::Spec->join('.', $ident);
+        $path   = File::Spec->canonpath($path);
 
-		unless($path && -e $path){
-			push @not_found, $ident;
-			next;
-		}
+        unless($path && -e $path){
+            push @not_found, $ident;
+            next;
+        }
 
-		$ToInstall{$path} = File::Spec->join('$(INST_ARCHAUTODIR)', $ident);
+        $ToInstall{$path} = File::Spec->join('$(INST_ARCHAUTODIR)', $ident);
 
-		_verbose "install: $path as $ident" if _VERBOSE;
-		$self->_extract_functions_from_header_file($path);
-	}
+        _verbose "install: $path as $ident" if _VERBOSE;
+        $self->_extract_functions_from_header_file($path);
+    }
 
-	if(@not_found){
-		die "Header file(s) not found: @not_found\n";
-	}
+    if(@not_found){
+        die "Header file(s) not found: @not_found\n";
+    }
 
-	return;
+    return;
 }
 
+my $home_directory;
 
-# NOTE:
-# This function tries to extract C functions from header files.
-# Using heuristic methods, not a smart parser.
 sub _extract_functions_from_header_file{
-	my($self, $h_file) = @_;
+    my($self, $h_file) = @_;
 
-	my @functions;
+    my @functions;
 
-	my $contents = do {
-		local *IN;
-		local $/;
-		open IN, "< $h_file" or die "Cannot open $h_file: $!";
-		scalar <IN>;
-	};
+    ($home_directory) = <~> unless defined $home_directory;
 
-	# remove C comments
-	$contents =~ s{ /\* .*? \*/ }{}xmsg;
+    # get header file contents through cpp(1)
+    my $contents = do {
+        my $mm = $self->makemaker_args;
 
-	# remove cpp directives
-	$contents =~ s{
-		\# \s* \w+
-			(?: [^\n]* \\ [\n])*
-			[^\n]* [\n]
-	}{}xmsg;
+        my $cppflags = q{"-I}. File::Spec->join($Config{archlib}, 'CORE') . q{"};
+        $cppflags    =~ s/~/$home_directory/g;
 
-	# register keywords
-	my %skip;
-	@skip{qw(if while for int void unsignd float double bool char)} = ();
+        $cppflags   .= ' ' . $mm->{INC} if $mm->{INC};
 
+        $cppflags   .= ' ' . ($mm->{CCFLAGS} || $Config{ccflags});
+        $cppflags   .= ' ' . $mm->{DEFINE} if $mm->{DEFINE};
 
-	while($contents =~ m{
-			([^\\;\s]+                # type
-			\s+
-			([a-zA-Z_][a-zA-Z0-9_]*)  # function name
-			\s*
-			\( [^;#]* \)              # argument list
-			[^;]*                     # attributes or something
-			;)                        # end of declaration
-		}xmsg){
-			my $decl = $1;
-			my $name = $2;
+        my $add_include = _is_msvc() ? '-FI' : '-include';
+        $cppflags   .= ' ' . join ' ', map{ qq{$add_include "$_"} } qw(EXTERN.h perl.h XSUB.h);
 
-			next if exists $skip{$name};
-			next if $name eq uc($name);  # maybe macros
+        my $cppcmd = qq{$Config{cpprun} $cppflags $h_file};
 
-			next if $decl =~ /\b typedef \b/xmsi;
+        _verbose("extract functions from: $cppcmd") if _VERBOSE;
+        `$cppcmd`;
+    };
 
-			next if $decl =~ /\b [0-9]+ \b/xmsi; # integer literals
-			next if $decl =~ / ["'] /xmsi;       # string/char literals
-			#"
+    unless(defined $contents){
+        die "Cannot call C pre-processor ($Config{cpprun}): $! ($?)";
+    }
 
-			push @functions, $name;
+    # remove other include file contents
+    my $chfile = q/\# (?:line)? \s+ \d+ /;
+    $contents =~ s{
+        ^$chfile  \s+ (?!"\Q$h_file\E")
+        .*?
+        ^(?= $chfile)
+    }{}xmsig;
 
-			_verbose "function: $name" if _VERBOSE;
-	}
+    if(_VERBOSE){
+        local *H;
+        open H, "> $h_file.out"
+            and print H $contents
+            and close H;
+    }
 
-	$self->cc_append_to_funclist(@functions) if @functions;
-	return;
+    while($contents =~ m{
+            ([^\\;\s]+                # type
+            \s+
+            ([a-zA-Z_][a-zA-Z0-9_]*)  # function name
+            \s*
+            \( [^;#]* \)              # argument list
+            [\w\s\(\)]*               # attributes or something
+            ;)                        # end of declaration
+        }xmsg){
+            my $decl = $1;
+            my $name = $2;
+
+            next if $decl =~ /\b typedef \b/xms;
+            next if $name =~ /^_/xms; # skip something private
+
+            push @functions, $name;
+
+            if(_VERBOSE){
+                $decl =~ tr/\n\r\t / /s;
+                $decl =~ s/ (\Q$name\E) /<$name>/xms;
+                _verbose("decl: $decl");
+            }
+    }
+
+    if(@functions){
+        $self->cc_append_to_funclist(@functions);
+    }
+
+    return;
 }
 
 
 sub cc_append_to_funclist{
-	my($self, @functions) = @_;
+    my($self, @functions) = @_;
 
-	$self->_xs_initialize();
+    $self->_xs_initialize();
 
-	my $mm = $self->makemaker_args;
+    my $mm = $self->makemaker_args;
 
-	push @{$mm->{FUNCLIST} ||= []}, @functions;
-	$mm->{DL_FUNCS} ||= { '$(NAME)' => ['boot_$(NAME)'] };
+    push @{$mm->{FUNCLIST} ||= []}, @functions;
+    $mm->{DL_FUNCS} ||= { '$(NAME)' => [] };
 
-	return;
+    return;
 }
 
 
 package
-	MY;
-
-use Config;
+    MY;
 
 # XXX: We must append to PM inside ExtUtils::MakeMaker->new().
 sub init_PM{
-	my $self = shift;
+    my $self = shift;
 
-	$self->SUPER::init_PM(@_);
+    $self->SUPER::init_PM(@_);
 
-	while(my($k, $v) = each %ToInstall){
-		$self->{PM}{$k} = $v;
-	}
-	return;
+    while(my($k, $v) = each %ToInstall){
+        $self->{PM}{$k} = $v;
+    }
+    return;
 }
 
 # append object file names to CCCMD
 sub const_cccmd {
-	my $self = shift;
+    my $self = shift;
 
-	my $cccmd  = $self->SUPER::const_cccmd(@_);
-	return q{} unless $cccmd;
+    my $cccmd  = $self->SUPER::const_cccmd(@_);
+    return q{} unless $cccmd;
 
-	if ($Config{cc} =~ /\A cl \b /xmsi){
-		# Microsoft Visual C++ Compiler
-		$cccmd .= ' -Fo$@';
-	}
-	else {
-		$cccmd .= ' -o $@';
-	}
+    if (Module::Install::XSUtil::_is_msvc()){
+        $cccmd .= ' -Fo$@';
+    }
+    else {
+        $cccmd .= ' -o $@';
+    }
 
-	return $cccmd
+    return $cccmd
 }
 
 1;
 __END__
 
-#line 554
+#line 689
