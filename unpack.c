@@ -111,7 +111,17 @@ static INLINE int template_callback_map(unpack_user* u, unsigned int n, SV** o)
 { HV * h = newHV(); *o = newRV_noinc((SV*)h); return 0; }
 
 static INLINE int template_callback_map_item(unpack_user* u, SV** c, SV* k, SV* v)
-{ hv_store_ent((HV*)SvRV(*c), k, v, 0); SvREFCNT_inc(v); return 0; }
+{
+    SV *tmp = newSV(0);
+    if (SvOK(v)) {
+        sv_setsv(tmp, v);
+        SvREFCNT_inc(tmp);
+    }
+    if (hv_store_ent((HV*)SvRV(*c), k, tmp, 0) == NULL) {
+        SvREFCNT_dec(tmp);
+    }
+    return 0;
+}
 
 static INLINE int template_callback_raw(unpack_user* u, const char* b, const char* p, unsigned int l, SV** o)
 { *o = (l == 0) ? newSVpv("", 0) : newSVpv(p, l); return 0; }

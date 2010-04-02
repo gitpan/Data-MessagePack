@@ -7,7 +7,7 @@ perl_version '5.008005';
 license 'perl';
 can_cc or die "This module requires a C compiler";
 
-tests 't/*.t';
+tests 't/*.t t/*/*.t';
 author_tests('xt');
 use_ppport 3.19;
 
@@ -34,7 +34,6 @@ if ($Module::Install::AUTHOR && -d File::Spec->catfile('..', 'msgpack')) {
 
 auto_set_repository;
 build_requires 'Test::More';
-use_test_base;
 auto_include;
 WriteAll;
 

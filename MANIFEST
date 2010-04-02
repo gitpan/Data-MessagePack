@@ -2,6 +2,7 @@ benchmark/deserialize.pl
 benchmark/serialize.pl
 benchmark/size.pl
 Changes
+inc/Devel/PPPort.pm
 inc/ExtUtils/ParseXS.pm
 inc/Module/Install.pm
 inc/Module/Install/AuthorTests.pm
@@ -13,15 +14,9 @@ inc/Module/Install/Makefile.pm
 inc/Module/Install/Metadata.pm
 inc/Module/Install/ReadmeFromPod.pm
 inc/Module/Install/Repository.pm
-inc/Module/Install/TestBase.pm
 inc/Module/Install/Win32.pm
 inc/Module/Install/WriteAll.pm
 inc/Module/Install/XSUtil.pm
-inc/Spiffy.pm
-inc/Test/Base.pm
-inc/Test/Base/Filter.pm
-inc/Test/Builder.pm
-inc/Test/Builder/Module.pm
 inc/Test/More.pm
 lib/Data/MessagePack.pm
 lib/Data/MessagePack/Unpacker.pod
@@ -35,7 +30,6 @@ msgpack/sysdep.h
 msgpack/unpack_define.h
 msgpack/unpack_template.h
 pack.c
-ppport.h
 README
 t/00_compile.t
 t/01_pack.t
@@ -43,6 +37,7 @@ t/02_unpack.t
 t/03_stream_unpack.t
 t/04_invert.t
 t/05_preferred_int.t
+t/800_bugs/01_hash.t
 t/data.pl
 t/Util.pm
 unpack.c

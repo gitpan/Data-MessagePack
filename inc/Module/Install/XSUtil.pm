@@ -3,7 +3,7 @@ package Module::Install::XSUtil;
 
 use 5.005_03;
 
-$VERSION = '0.19';
+$VERSION = '0.22';
 
 use Module::Install::Base;
 @ISA     = qw(Module::Install::Base);
@@ -18,7 +18,7 @@ use File::Find;
 use constant _VERBOSE => $ENV{MI_VERBOSE} ? 1 : 0;
 
 my %ConfigureRequires = (
-    'ExtUtils::CBuilder' => 0.21, # for have_compiler()
+    # currently nothing
 );
 
 my %BuildRequires = (
@@ -54,16 +54,16 @@ sub _xs_initialize{
         $self->build_requires(%BuildRequires);
         $self->requires(%Requires);
 
-        $self->makemaker_args(OBJECT => '$(O_FILES)');
+        $self->makemaker_args->{OBJECT} = '$(O_FILES)';
         $self->clean_files('$(O_FILES)');
 
         if($self->_xs_debugging()){
             # override $Config{optimize}
             if(_is_msvc()){
-                $self->makemaker_args(OPTIMIZE => '-Zi');
+                $self->makemaker_args->{OPTIMIZE} = '-Zi';
             }
             else{
-                $self->makemaker_args(OPTIMIZE => '-g');
+                $self->makemaker_args->{OPTIMIZE} = '-g';
             }
             $self->cc_define('-DXS_ASSERT');
         }
@@ -96,11 +96,7 @@ sub _is_msvc{
             }
         }
 
-        local $@;
-        return $cc_available = eval{
-            require ExtUtils::CBuilder;
-            ExtUtils::CBuilder->new(quiet => 1)->have_compiler();
-        } ? 1 : 0;
+        return $cc_available = shift->can_cc();
     }
 }
 
@@ -111,8 +107,9 @@ sub use_ppport{
 
     my $filename = 'ppport.h';
 
-    $dppp_version ||= 0;
+    $dppp_version ||= 3.19; # the more, the better
     $self->configure_requires('Devel::PPPort' => $dppp_version);
+    $self->build_requires('Devel::PPPort' => $dppp_version);
 
     print "Writing $filename\n";
 
@@ -146,11 +143,14 @@ sub cc_warnings{
         $self->cc_append_to_ccflags(qw(-Wall));
 
         no warnings 'numeric';
-        if($Config{gccversion} >= 4.00){
+        if($Config{gccversion} >= 4.0){
             $self->cc_append_to_ccflags('-Wextra -Wdeclaration-after-statement');
+            if($Config{gccversion} >= 4.1){
+                $self->cc_append_to_ccflags('-Wc++-compat');
+            }
         }
         else{
-            $self->cc_append_to_ccflags('-W');
+            $self->cc_append_to_ccflags('-W -Wno-comment');
         }
     }
     elsif(_is_msvc()){
