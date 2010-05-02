@@ -4,7 +4,7 @@ use warnings;
 use XSLoader;
 use 5.008001;
 
-our $VERSION = '0.10';
+our $VERSION = '0.09_01';
 our $PreferInteger = 0;
 
 our $true  = do { bless \(my $dummy = 1), "Data::MessagePack::Boolean" };
@@ -29,6 +29,20 @@ Data::MessagePack - messagepack
 =head1 DESCRIPTION
 
 Data::MessagePack is a binary packer for perl.
+
+=head1 METHODS
+
+=over 4
+
+=item my $packed = Data::MessagePack->pack($data);
+
+pack the $data to messagepack format string.
+
+=item my $unpacked = Data::MessagePack->unpack($msgpackstr);
+
+unpack the $msgpackstr to messagepack format string.
+
+=back
 
 =head1 Configuration Variables
 

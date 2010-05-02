@@ -1,7 +1,6 @@
-0.10
+0.09_01
 
-    - fixed bug around unpacking hash
-      (reported by mala++, fixed by lestrrat++)
+    - fixed memory leak issue(reported by Maxime Soulé)
 
 0.09
 

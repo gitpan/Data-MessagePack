@@ -23,8 +23,10 @@ no_index:
     - t
     - xt
 requires:
+  Filter::Util::Call: 0
+  Test::More: 0.95
   XSLoader: 0.1
   perl: 5.8.5
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.10
+version: 0.09_01

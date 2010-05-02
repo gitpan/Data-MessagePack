@@ -18,7 +18,7 @@ sub _carp {
     return warn @_, " at $file line $line\n";
 }
 
-our $VERSION = '0.95_01';
+our $VERSION = '0.94';
 $VERSION = eval $VERSION;    ## no critic (BuiltinFunctions::ProhibitStringyEval)
 
 use Test::Builder::Module;
@@ -247,7 +247,7 @@ sub new_ok {
     return $obj;
 }
 
-#line 736
+#line 719
 
 sub subtest($&) {
     my ($name, $subtests) = @_;
@@ -256,7 +256,7 @@ sub subtest($&) {
     return $tb->subtest(@_);
 }
 
-#line 760
+#line 743
 
 sub pass (;$) {
     my $tb = Test::More->builder;
@@ -270,7 +270,7 @@ sub fail (;$) {
     return $tb->ok( 0, @_ );
 }
 
-#line 823
+#line 806
 
 sub use_ok ($;@) {
     my( $module, @imports ) = @_;
@@ -332,7 +332,7 @@ sub _eval {
     return( $eval_result, $eval_error );
 }
 
-#line 892
+#line 875
 
 sub require_ok ($) {
     my($module) = shift;
@@ -376,7 +376,7 @@ sub _is_module_name {
     return $module =~ /^[a-zA-Z]\w*$/ ? 1 : 0;
 }
 
-#line 969
+#line 952
 
 our( @Data_Stack, %Refs_Seen );
 my $DNE = bless [], 'Does::Not::Exist';
@@ -476,14 +476,14 @@ sub _type {
 
     return '' if !ref $thing;
 
-    for my $type (qw(Regexp ARRAY HASH REF SCALAR GLOB CODE)) {
+    for my $type (qw(ARRAY HASH REF SCALAR GLOB CODE Regexp)) {
         return $type if UNIVERSAL::isa( $thing, $type );
     }
 
     return '';
 }
 
-#line 1129
+#line 1112
 
 sub diag {
     return Test::More->builder->diag(@_);
@@ -493,13 +493,13 @@ sub note {
     return Test::More->builder->note(@_);
 }
 
-#line 1155
+#line 1138
 
 sub explain {
     return Test::More->builder->explain(@_);
 }
 
-#line 1221
+#line 1204
 
 ## no critic (Subroutines::RequireFinalReturn)
 sub skip {
@@ -527,7 +527,7 @@ sub skip {
     last SKIP;
 }
 
-#line 1305
+#line 1288
 
 sub todo_skip {
     my( $why, $how_many ) = @_;
@@ -548,7 +548,7 @@ sub todo_skip {
     last TODO;
 }
 
-#line 1360
+#line 1343
 
 sub BAIL_OUT {
     my $reason = shift;
@@ -557,7 +557,7 @@ sub BAIL_OUT {
     $tb->BAIL_OUT($reason);
 }
 
-#line 1399
+#line 1382
 
 #'#
 sub eq_array {
@@ -581,8 +581,6 @@ sub _eq_array {
         my $e1 = $_ > $#$a1 ? $DNE : $a1->[$_];
         my $e2 = $_ > $#$a2 ? $DNE : $a2->[$_];
 
-        next if _equal_nonrefs($e1, $e2);
-
         push @Data_Stack, { type => 'ARRAY', idx => $_, vals => [ $e1, $e2 ] };
         $ok = _deep_check( $e1, $e2 );
         pop @Data_Stack if $ok;
@@ -591,21 +589,6 @@ sub _eq_array {
     }
 
     return $ok;
-}
-
-sub _equal_nonrefs {
-    my( $e1, $e2 ) = @_;
-
-    return if ref $e1 or ref $e2;
-
-    if ( defined $e1 ) {
-        return 1 if defined $e2 and $e1 eq $e2;
-    }
-    else {
-        return 1 if !defined $e2;
-    }
-
-    return;
 }
 
 sub _deep_check {
@@ -700,7 +683,7 @@ WHOA
     }
 }
 
-#line 1549
+#line 1515
 
 sub eq_hash {
     local @Data_Stack = ();
@@ -723,8 +706,6 @@ sub _eq_hash {
         my $e1 = exists $a1->{$k} ? $a1->{$k} : $DNE;
         my $e2 = exists $a2->{$k} ? $a2->{$k} : $DNE;
 
-        next if _equal_nonrefs($e1, $e2);
-
         push @Data_Stack, { type => 'HASH', idx => $k, vals => [ $e1, $e2 ] };
         $ok = _deep_check( $e1, $e2 );
         pop @Data_Stack if $ok;
@@ -735,7 +716,7 @@ sub _eq_hash {
     return $ok;
 }
 
-#line 1608
+#line 1572
 
 sub eq_set {
     my( $a1, $a2 ) = @_;
@@ -760,6 +741,6 @@ sub eq_set {
     );
 }
 
-#line 1810
+#line 1774
 
 1;
