@@ -17,7 +17,6 @@ inc/Module/Install/Repository.pm
 inc/Module/Install/Win32.pm
 inc/Module/Install/WriteAll.pm
 inc/Module/Install/XSUtil.pm
-inc/Test/More.pm
 inc/Test/Requires.pm
 lib/Data/MessagePack.pm
 lib/Data/MessagePack/Unpacker.pod
