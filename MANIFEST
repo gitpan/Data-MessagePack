@@ -40,6 +40,7 @@ t/04_invert.t
 t/05_preferred_int.t
 t/06_stream_unpack2.t
 t/07_break.t
+t/08_cycle.t
 t/data.pl
 t/Util.pm
 unpack.c
