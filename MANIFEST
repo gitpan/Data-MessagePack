@@ -19,18 +19,16 @@ inc/Module/Install/WriteAll.pm
 inc/Module/Install/XSUtil.pm
 inc/Test/Requires.pm
 lib/Data/MessagePack.pm
+lib/Data/MessagePack/PP.pm
 lib/Data/MessagePack/Unpacker.pod
 Makefile.PL
 MANIFEST			This list of files
-MessagePack.c
 META.yml
 msgpack/pack_define.h
 msgpack/pack_template.h
 msgpack/sysdep.h
 msgpack/unpack_define.h
 msgpack/unpack_template.h
-pack.c
-ppport.h
 README
 t/00_compile.t
 t/01_pack.t
@@ -43,8 +41,10 @@ t/07_break.t
 t/08_cycle.t
 t/data.pl
 t/Util.pm
-unpack.c
 util.h
+xs-src/MessagePack.c
+xs-src/pack.c
+xs-src/unpack.c
 xt/99_pod.t
 xt/leaks/normal.t
 xt/leaks/stream.t

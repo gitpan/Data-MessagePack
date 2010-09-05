@@ -22,7 +22,7 @@ no_index:
 requires:
   Test::More: 0.94
   XSLoader: 0.1
-  perl: 5.8.5
+  perl: 5.8.0
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.16
+version: 0.16_01
