@@ -3,7 +3,7 @@ package Module::Install::XSUtil;
 
 use 5.005_03;
 
-$VERSION = '0.26';
+$VERSION = '0.27';
 
 use Module::Install::Base;
 @ISA     = qw(Module::Install::Base);
@@ -181,7 +181,8 @@ sub cc_warnings{
 
 sub c99_available {
     my($self) = @_;
-    $self->_xs_initialize();
+
+    return 0 if not $self->cc_available();
 
     require File::Temp;
     require File::Basename;
@@ -214,6 +215,8 @@ sub requires_c99 {
         warn "This distribution requires a C99 compiler, but $Config{cc} seems not to support C99, stopped.\n";
         exit;
     }
+    $self->_xs_initialize();
+
     return;
 }
 
@@ -627,4 +630,4 @@ sub const_cccmd {
 1;
 __END__
 
-#line 823
+#line 830
