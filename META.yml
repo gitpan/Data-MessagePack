@@ -26,4 +26,4 @@ requires:
 resources:
   license: http://dev.perl.org/licenses/
   repository: http://github.com/msgpack/msgpack
-version: 0.16_04
+version: 0.20
