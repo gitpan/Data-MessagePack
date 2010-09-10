@@ -28,6 +28,7 @@ msgpack/pack_template.h
 msgpack/sysdep.h
 msgpack/unpack_define.h
 msgpack/unpack_template.h
+perlxs.h
 README
 t/00_compile.t
 t/01_pack.t
