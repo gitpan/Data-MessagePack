@@ -1,3 +1,4 @@
+benchmark/data.pl
 benchmark/deserialize.pl
 benchmark/serialize.pl
 benchmark/size.pl
@@ -18,6 +19,7 @@ inc/Module/Install/WriteAll.pm
 inc/Module/Install/XSUtil.pm
 inc/Test/Requires.pm
 lib/Data/MessagePack.pm
+lib/Data/MessagePack/Boolean.pm
 lib/Data/MessagePack/PP.pm
 lib/Data/MessagePack/Unpacker.pod
 Makefile.PL
@@ -28,7 +30,6 @@ msgpack/pack_template.h
 msgpack/sysdep.h
 msgpack/unpack_define.h
 msgpack/unpack_template.h
-perlxs.h
 README
 t/00_compile.t
 t/01_pack.t
@@ -39,12 +40,20 @@ t/05_preferred_int.t
 t/06_stream_unpack2.t
 t/07_break.t
 t/08_cycle.t
+t/09_stddata.t
+t/10_splitted_bytes.t
+t/11_stream_unpack3.t
+t/12_stream_unpack4.t
+t/50_leaktrace.t
 t/data.pl
+t/std/cases.json
+t/std/cases.mpac
+t/std/cases_compact.mpac
 t/Util.pm
-util.h
 xs-src/MessagePack.c
 xs-src/pack.c
 xs-src/unpack.c
+xshelper.h
 xt/99_pod.t
 xt/leaks/normal.t
 xt/leaks/stream.t

@@ -1,3 +1,9 @@
+
+0.24
+    - Fixed a lot of streaming unpacking issues (tokuhirom, gfx)
+    - Fixed unpacking issues for 64 bit integers on 32 bit perls (gfx)
+    - Improved performance, esp. in unpacking (gfx)
+
 0.23
 
     (NO FEATURE CHANGES)
