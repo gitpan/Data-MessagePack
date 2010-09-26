@@ -44,6 +44,8 @@ t/09_stddata.t
 t/10_splitted_bytes.t
 t/11_stream_unpack3.t
 t/12_stream_unpack4.t
+t/13_booleans.t
+t/14_invalid_data.t
 t/50_leaktrace.t
 t/data.pl
 t/std/cases.json
