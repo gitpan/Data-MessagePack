@@ -3,7 +3,7 @@ package Module::Install::XSUtil;
 
 use 5.005_03;
 
-$VERSION = '0.33';
+$VERSION = '0.35';
 
 use Module::Install::Base;
 @ISA     = qw(Module::Install::Base);
@@ -183,11 +183,13 @@ sub cc_warnings{
 
         my $gccversion = _gccversion();
         if($gccversion >= 4.0){
-            # Note: MSVC++ doesn't support C99,
-            # so -Wdeclaration-after-statement helps
-            # ensure C89 specs.
-            $self->cc_append_to_ccflags(qw(-Wdeclaration-after-statement));
             $self->cc_append_to_ccflags(qw(-Wextra));
+            if(!($UseC99 or $UseCplusplus)) {
+                # Note: MSVC++ doesn't support C99,
+                # so -Wdeclaration-after-statement helps
+                # ensure C89 specs.
+                $self->cc_append_to_ccflags(qw(-Wdeclaration-after-statement));
+            }
             if($gccversion >= 4.1 && !$UseCplusplus) {
                 $self->cc_append_to_ccflags(qw(-Wc++-compat));
             }
@@ -217,6 +219,8 @@ sub c99_available {
     my $tmpfile = File::Temp->new(SUFFIX => '.c');
 
     $tmpfile->print(<<'C99');
+// include a C99 header
+#include <stdbool.h>
 inline // a C99 keyword with C99 style comments
 int test_c99() {
     int i = 0;
@@ -317,7 +321,7 @@ sub cc_assert_lib {
 
     if ( ! $self->{xsu_loaded_checklib} ) {
         my $loaded_lib = 0;
-        foreach my $checklib qw(inc::Devel::CheckLib Devel::CheckLib) {
+        foreach my $checklib (qw(inc::Devel::CheckLib Devel::CheckLib)) {
             eval "use $checklib 0.4";
             if (!$@) {
                 $loaded_lib = 1;
@@ -553,7 +557,8 @@ sub _extract_functions_from_header_file{
         $cppflags   .= ' ' . $mm->{DEFINE} if $mm->{DEFINE};
 
         my $add_include = _is_msvc() ? '-FI' : '-include';
-        $cppflags   .= ' ' . join ' ', map{ qq{$add_include "$_"} } qw(EXTERN.h perl.h XSUB.h);
+        $cppflags   .= ' ' . join ' ',
+            map{ qq{$add_include "$_"} } qw(EXTERN.h perl.h XSUB.h);
 
         my $cppcmd = qq{$Config{cpprun} $cppflags $h_file};
 
@@ -658,7 +663,6 @@ sub _xshelper_h {
 :
 :#define PERL_NO_GET_CONTEXT /* we want efficiency */
 :#include <EXTERN.h>
-:
 :#include <perl.h>
 :#define NO_XSLOCKS /* for exceptions */
 :#include <XSUB.h>
@@ -684,8 +688,8 @@ sub _xshelper_h {
 :#endif
 :
 :#ifndef LIKELY /* they are just a compiler's hint */
-:#define LIKELY(x)   (x)
-:#define UNLIKELY(x) (x)
+:#define LIKELY(x)   (!!(x))
+:#define UNLIKELY(x) (!!(x))
 :#endif
 :
 :#ifndef newSVpvs_share
@@ -715,8 +719,10 @@ sub _xshelper_h {
 :#define LooksLikeNumber(x) (SvPOKp(x) ? looks_like_number(x) : (I32)SvNIOKp(x))
 :#endif
 :
-:#define newAV_mortal() (AV*)sv_2mortal((SV*)newAV())
-:#define newHV_mortal() (HV*)sv_2mortal((SV*)newHV())
+:#define newAV_mortal()         (AV*)sv_2mortal((SV*)newAV())
+:#define newHV_mortal()         (HV*)sv_2mortal((SV*)newHV())
+:#define newRV_inc_mortal(sv)   sv_2mortal(newRV_inc(sv))
+:#define newRV_noinc_mortal(sv) sv_2mortal(newRV_noinc(sv))
 :
 :#define DECL_BOOT(name) EXTERN_C XS(CAT2(boot_, name))
 :#define CALL_BOOT(name) STMT_START {            \
@@ -763,4 +769,4 @@ sub const_cccmd {
 1;
 __END__
 
-#line 974
+#line 980

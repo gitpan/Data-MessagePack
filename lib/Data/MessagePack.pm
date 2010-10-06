@@ -3,23 +3,19 @@ use strict;
 use warnings;
 use 5.008001;
 
-our $VERSION = '0.28';
+our $VERSION = '0.29';
 our $PreferInteger = 0;
 
 sub true () {
     require Data::MessagePack::Boolean;
     no warnings 'once', 'redefine';
-    my $t = $Data::MessagePack::Boolean::true;
-    *true = sub (){ $t };
-    return $t;
+    return $Data::MessagePack::Boolean::true;
 }
 
 sub false () {
     require Data::MessagePack::Boolean;
     no warnings 'once', 'redefine';
-    my $f = $Data::MessagePack::Boolean::false;
-    *false = sub (){ $f };
-    return $f;
+    return $Data::MessagePack::Boolean::false;
 }
 
 if ( !__PACKAGE__->can('pack') ) { # this idea comes from Text::Xslate
@@ -168,6 +164,12 @@ buffers while some other bindings (such as Ruby binding) does. This limitation
 will astonish those who try to unpack byte streams with an arbitrary buffer size
 (e.g. C<< while(read($socket, $buffer, $arbitrary_buffer_size)) { ... } >>).
 We should implement the internal buffer for the unpacker.
+
+=item UTF8 mode
+
+Data::MessagePack::Unpacker supports utf8 mode, which decodes strings
+as UTF8-8. << Data::MessagePack->unpack >> should support utf8 mode in a
+future.
 
 =back
 
