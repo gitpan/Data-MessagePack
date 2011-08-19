@@ -19,14 +19,14 @@ XS(xs_unpacker_destroy);
 void init_Data__MessagePack_pack(pTHX_ bool const cloning);
 void init_Data__MessagePack_unpack(pTHX_ bool const cloning);
 
-XS(boot_Data__MessagePack) {
-    dXSARGS;
-    XS_VERSION_BOOTCHECK;
+MODULE = Data::MessagePack PACKAGE = Data::MessagePack
 
+BOOT:
+{
     init_Data__MessagePack_pack(aTHX_   false);
     init_Data__MessagePack_unpack(aTHX_ false);
 
-    newXS("Data::MessagePack::pack", xs_pack, __FILE__);
+    newXS("Data::MessagePack::pack",   xs_pack,   __FILE__);
     newXS("Data::MessagePack::unpack", xs_unpack, __FILE__);
 
     newXS("Data::MessagePack::Unpacker::new",           xs_unpacker_new, __FILE__);
@@ -39,4 +39,17 @@ XS(boot_Data__MessagePack) {
     newXS("Data::MessagePack::Unpacker::reset",         xs_unpacker_reset, __FILE__);
     newXS("Data::MessagePack::Unpacker::DESTROY",       xs_unpacker_destroy, __FILE__);
 }
+
+#ifdef USE_ITHREADS
+
+void
+CLONE(...)
+CODE:
+{
+    PERL_UNUSED_VAR(items);
+    init_Data__MessagePack_pack(aTHX_ true);
+    init_Data__MessagePack_unpack(aTHX_ true);
+}
+
+#endif // USE_ITHREADS
 

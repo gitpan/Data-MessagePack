@@ -3,7 +3,7 @@ package Module::Install::XSUtil;
 
 use 5.005_03;
 
-$VERSION = '0.36';
+$VERSION = '0.38';
 
 use Module::Install::Base;
 @ISA     = qw(Module::Install::Base);
@@ -26,7 +26,7 @@ my %BuildRequires = (
 );
 
 my %Requires = (
-    'XSLoader' => 0.10, # the newer, the better
+    'XSLoader' => 0.02,
 );
 
 my %ToInstall;
@@ -67,7 +67,7 @@ sub _xs_initialize{
                 $self->makemaker_args->{OPTIMIZE} = '-Zi';
             }
             else{
-                $self->makemaker_args->{OPTIMIZE} = '-g';
+                $self->makemaker_args->{OPTIMIZE} = '-g -ggdb -g3';
             }
             $self->cc_define('-DXS_ASSERT');
         }
@@ -97,8 +97,12 @@ sub _is_msvc{
 
     my $want_xs;
     sub want_xs {
-        my $default = @_ ? shift : 1; # you're using this module, you /must/ want XS by default
+        my($self, $default) = @_;
         return $want_xs if defined $want_xs;
+
+        # you're using this module, you must want XS by default
+        # unless PERL_ONLY is true.
+        $default = !$ENV{PERL_ONLY} if not defined $default;
 
         foreach my $arg(@ARGV){
             if($arg eq '--pp'){
@@ -561,7 +565,10 @@ sub _extract_functions_from_header_file{
             map{ qq{$add_include "$_"} } qw(EXTERN.h perl.h XSUB.h);
 
         my $cppcmd = qq{$Config{cpprun} $cppflags $h_file};
-
+        # remove all the -arch options to workaround gcc errors:
+        #       "-E, -S, -save-temps and -M options are not allowed
+        #        with multiple -arch flags"
+        $cppcmd =~ s/ -arch \s* \S+ //xmsg;
         _verbose("extract functions from: $cppcmd") if _VERBOSE;
         `$cppcmd`;
     };
@@ -769,4 +776,4 @@ sub const_cccmd {
 1;
 __END__
 
-#line 980
+#line 987

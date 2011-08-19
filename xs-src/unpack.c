@@ -1,6 +1,5 @@
 #define NEED_newRV_noinc
 #define NEED_sv_2pv_flags
-#define NEED_my_snprintf
 #include "xshelper.h"
 
 #define MY_CXT_KEY "Data::MessagePack::_unpack_guts" XS_VERSION
@@ -10,11 +9,13 @@ typedef struct {
 } my_cxt_t;
 START_MY_CXT
 
+// context data for execute_template()
 typedef struct {
     bool finished;
-    bool incremented;
     bool utf8;
+    SV*  buffer;
 } unpack_user;
+#define UNPACK_USER_INIT { false, false, NULL }
 
 #include "msgpack/unpack_define.h"
 
@@ -35,14 +36,15 @@ void init_Data__MessagePack_unpack(pTHX_ bool const cloning) {
     // booleans are load on demand (lazy load).
     if(!cloning) {
         MY_CXT_INIT;
-        MY_CXT.msgpack_true  = NULL;
-        MY_CXT.msgpack_false = NULL;
+        PERL_UNUSED_VAR(MY_CXT);
     }
     else {
         MY_CXT_CLONE;
-        MY_CXT.msgpack_true  = NULL;
-        MY_CXT.msgpack_false = NULL;
     }
+
+    dMY_CXT;
+    MY_CXT.msgpack_true  = NULL;
+    MY_CXT.msgpack_false = NULL;
 }
 
 
@@ -121,7 +123,8 @@ STATIC_INLINE int template_callback_IV(unpack_user* u PERL_UNUSED_DECL, IV const
     return 0;
 }
 
-static const char* str_from_uint64(char* buf_end, uint64_t v)
+/* workaround win32 problems (my_snprintf(%llu) returns incorrect values ) */
+static char* str_from_uint64(char* buf_end, uint64_t v)
 {
   char *p = buf_end;
   *--p = '\0';
@@ -131,9 +134,8 @@ static const char* str_from_uint64(char* buf_end, uint64_t v)
   return p;
 }
 
-static const char* str_from_int64(char* buf_end, int64_t v)
-{
-  int minus = v < 0;
+static const char* str_from_int64(char* buf_end, int64_t const v) {
+  bool const minus = v < 0;
   char* p = str_from_uint64(buf_end, minus ? -v : v);
   if (minus)
     *--p = '-';
@@ -144,13 +146,8 @@ static int template_callback_uint64(unpack_user* u PERL_UNUSED_DECL, uint64_t co
 {
     dTHX;
     char tbuf[64];
-#if 1 /* workaround for win32-32bit (my_snprintf(%llu) returns are incorrect) */
-    char* s = str_from_uint64(tbuf + sizeof(tbuf), d);
+    const char* const s = str_from_uint64(tbuf + sizeof(tbuf), d);
     *o = newSVpvn(s, tbuf + sizeof(tbuf) - 1 - s);
-#else
-    STRLEN const len = my_snprintf(tbuf, sizeof(tbuf), "%llu", d);
-    *o = newSVpvn(tbuf, len);
-#endif
     return 0;
 }
 
@@ -158,13 +155,8 @@ static int template_callback_int64(unpack_user* u PERL_UNUSED_DECL, int64_t cons
 {
     dTHX;
     char tbuf[64];
-#if 1 /* workaround for win32-32bit (my_snprintf(%lld) returns are incorrect) */
-    char* s = str_from_int64(tbuf + sizeof(tbuf), d);
+    const char* const s = str_from_int64(tbuf + sizeof(tbuf), d);
     *o = newSVpvn(s, tbuf + sizeof(tbuf) - 1 - s);
-#else
-    STRLEN const len = my_snprintf(tbuf, sizeof(tbuf), "%lld", d);
-    *o = newSVpvn(tbuf, len);
-#endif
     return 0;
 }
 
@@ -293,8 +285,22 @@ STATIC_INLINE int template_callback_raw(unpack_user* u PERL_UNUSED_DECL, const c
 
 XS(xs_unpack) {
     dXSARGS;
+    SV* const self = ST(0);
     SV* const data = ST(1);
     size_t limit;
+
+    unpack_user u = UNPACK_USER_INIT;
+
+    // setup configuration
+    if(SvROK(self) && SvTYPE(SvRV(self)) == SVt_PVHV) {
+        HV* const hv = (HV*)SvRV(self);
+        SV** svp;
+
+        svp = hv_fetchs(hv, "utf8", FALSE);
+        if(svp) {
+            u.utf8 = SvTRUE(*svp) ? true : false;
+        }
+    }
 
     if (items == 2) {
         limit = sv_len(data);
@@ -311,8 +317,6 @@ XS(xs_unpack) {
 
     msgpack_unpack_t mp;
     template_init(&mp);
-
-    unpack_user const u = {false, false, false};
     mp.user = u;
 
     size_t from = 0;
@@ -337,14 +341,6 @@ XS(xs_unpack) {
 /* ------------------------------ stream -- */
 /* http://twitter.com/frsyuki/status/13249304748 */
 
-STATIC_INLINE void _reset(SV* const self) {
-    dTHX;
-	unpack_user const u = {false, false, false};
-
-	UNPACKER(self, mp);
-	template_init(mp);
-	mp->user = u;
-}
 
 XS(xs_unpacker_new) {
     dXSARGS;
@@ -356,9 +352,14 @@ XS(xs_unpacker_new) {
     msgpack_unpack_t *mp;
 
     Newxz(mp, 1, msgpack_unpack_t);
+    template_init(mp);
+    unpack_user const u = UNPACK_USER_INIT;
+    mp->user = u;
+
+    mp->user.buffer = newSV(80);
+    sv_setpvs(mp->user.buffer, "");
 
     sv_setref_pv(self, "Data::MessagePack::Unpacker", mp);
-    _reset(self);
 
     ST(0) = self;
     XSRETURN(1);
@@ -389,21 +390,44 @@ _execute_impl(SV* const self, SV* const data, UV const offset, UV const limit) {
     dTHX;
 
     if(offset >= limit) {
-        Perl_croak(aTHX_ "offset (%"UVuf") is bigger than data buffer size (%"UVuf")",
+        Perl_croak(aTHX_
+            "offset (%"UVuf") is bigger than data buffer size (%"UVuf")",
             offset, limit);
     }
 
     UNPACKER(self, mp);
 
     size_t from = offset;
-    const char* const dptr = SvPV_nolen_const(data);
+    const char* dptr = SvPV_nolen_const(data);
+    STRLEN      dlen = limit;
 
-    int const ret = template_execute(mp, dptr, limit, &from);
+    if(SvCUR(mp->user.buffer) != 0) {
+        sv_catpvn(mp->user.buffer, dptr, dlen);
+        dptr = SvPV_const(mp->user.buffer, dlen);
+        from = 0;
+    }
+
+    int const ret = template_execute(mp, dptr, dlen, &from);
+    // ret <  0 : error
+    // ret == 0 : insufficient
+    // ret >  0 : success
 
     if(ret < 0) {
-        Perl_croak(aTHX_ "Data::MessagePack::Unpacker: parse error while executing");
+        Perl_croak(aTHX_
+            "Data::MessagePack::Unpacker: parse error while executing");
     }
+
     mp->user.finished = (ret > 0) ? true : false;
+    if(!mp->user.finished) {
+        template_init(mp); // reset the state
+        sv_setpvn(mp->user.buffer, dptr, dlen);
+        from = 0;
+    }
+    else {
+        sv_setpvs(mp->user.buffer, "");
+    }
+    //warn(">> (%d) dlen=%d, from=%d, rest=%d",
+    //    (int)ret, (int)dlen, (int)from, dlen - from);
     return from;
 }
 
@@ -475,12 +499,12 @@ XS(xs_unpacker_reset) {
     }
 
     UNPACKER(ST(0), mp);
-    bool const utf8 = mp->user.utf8; // save
 
     SV* const data = template_data(mp);
     SvREFCNT_dec(data);
-    _reset(ST(0));
-    mp->user.utf8 = utf8;
+
+    template_init(mp);
+    sv_setpvs(mp->user.buffer, "");
 
     XSRETURN(0);
 }
@@ -495,6 +519,7 @@ XS(xs_unpacker_destroy) {
 
     SV* const data = template_data(mp);
     SvREFCNT_dec(data);
+    SvREFCNT_dec(mp->user.buffer);
     Safefree(mp);
 
     XSRETURN(0);

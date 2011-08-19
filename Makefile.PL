@@ -7,13 +7,13 @@ name 'Data-MessagePack';
 all_from 'lib/Data/MessagePack.pm';
 readme_from('lib/Data/MessagePack.pm');
 
-perl_version '5.008000';
-license 'perl';
+test_requires('Test::More' => 0.94); # done_testing
+test_requires('Test::Requires');
 
 tests 't/*.t';
 recursive_author_tests('xt');
 
-
+my $use_xs = 0;
 if ( $] >= 5.008005 and want_xs() ) {
     my $has_c99 = c99_available(); # msgpack C library requires C99.
 
@@ -21,11 +21,13 @@ if ( $] >= 5.008005 and want_xs() ) {
         requires_c99();
         use_xshelper();
         cc_warnings;
+        cc_include_paths('include');
         cc_src_paths('xs-src');
 
         if($Module::Install::AUTHOR) {
             postamble qq{test :: test_pp\n\n};
         }
+        $use_xs = 1;
     }
     else {
         print <<NOT_SUPPORT_C99;
@@ -37,7 +39,8 @@ NOT_SUPPORT_C99
 
     }
 }
-else {
+
+if(!$use_xs) {
     print "configure PP version\n\n";
     requires 'Math::BigInt' => 1.89; # old versions of BigInt were broken
 }
@@ -50,27 +53,33 @@ clean_files qw{
     cover_db
 };
 
-# copy modules
-if ($Module::Install::AUTHOR && -d File::Spec->catfile('..', 'msgpack')) {
-    mkdir 'msgpack' unless -d 'msgpack';
-    require File::Copy;
-    for my $src (<../msgpack/*.h>) {
-        File::Copy::copy($src, 'msgpack/') or die "copy failed: $!";
+if ($Module::Install::AUTHOR) {
+    print "AuthorMode: copy modules\n";
+    if(not -d 'msgpack') {
+        system 'git', 'submodule', 'init';
+        system 'git', 'submodule', 'update';
     }
 
-    mkdir 't/std';
-    for my $data(<../test/*.{json,mpac}>) {
-        File::Copy::copy($data, 't/std') or die "copy failed: $!";
+    require File::Path;
+    require File::Copy;
+
+    File::Path::rmtree(qw(include t/std));
+    File::Path::mkpath(qw(include/msgpack t/std));
+
+    for my $src (<msgpack/msgpack/*.h>) {
+        print "AuthorMode: copy $src to include/msgpack\n";
+        File::Copy::copy($src, 'include/msgpack') or die "copy failed: $!";
+    }
+
+    for my $src(<msgpack/test/*.{json,mpac}>) {
+        print "AuthorMode: copy $src to t/std/\n";
+        File::Copy::copy($src, 't/std') or die "copy failed: $!";
     }
 }
 
-requires 'Test::More' => 0.94; # done_testing
-test_requires('Test::Requires');
-
 test_with_env( test_pp => PERL_DATA_MESSAGEPACK => 'pp' );
 
-repository('http://github.com/msgpack/msgpack');
-auto_include;
+repository('http://github.com/msgpack/msgpack-perl');
 WriteAll;
 
 # copied from Makefile.PL in Text::Xslate.
