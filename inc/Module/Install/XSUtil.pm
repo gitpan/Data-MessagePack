@@ -3,7 +3,7 @@ package Module::Install::XSUtil;
 
 use 5.005_03;
 
-$VERSION = '0.37';
+$VERSION = '0.41';
 
 use Module::Install::Base;
 @ISA     = qw(Module::Install::Base);
@@ -18,11 +18,10 @@ use File::Find;
 use constant _VERBOSE => $ENV{MI_VERBOSE} ? 1 : 0;
 
 my %ConfigureRequires = (
-    # currently nothing
+    'ExtUtils::ParseXS' => 2.21,
 );
 
 my %BuildRequires = (
-    'ExtUtils::ParseXS' => 2.21, # the newer, the better
 );
 
 my %Requires = (
@@ -255,6 +254,17 @@ sub requires_c99 {
     return;
 }
 
+sub requires_cplusplus {
+    my($self) = @_;
+    if(!$self->cc_available) {
+        warn "This distribution requires a C++ compiler, but $Config{cc} seems not to support C++, stopped.\n";
+        exit;
+    }
+    $self->_xs_initialize();
+    $UseCplusplus = 1;
+    return;
+}
+
 sub cc_append_to_inc{
     my($self, @dirs) = @_;
 
@@ -448,9 +458,10 @@ sub cc_src_paths{
         }
     }, @dirs);
 
+    my $xs_to = $UseCplusplus ? '.cpp' : '.c';
     foreach my $src_file(@src_files){
         my $c = $src_file;
-        if($c =~ s/ \.xs \z/.c/xms){
+        if($c =~ s/ \.xs \z/$xs_to/xms){
             $XS_ref->{$src_file} = $c;
 
             _verbose "xs: $src_file" if _VERBOSE;
@@ -471,6 +482,8 @@ sub cc_src_paths{
 
     return;
 }
+
+sub cc_inc_paths { goto &cc_include_paths }
 
 sub cc_include_paths{
     my($self, @dirs) = @_;
@@ -565,7 +578,10 @@ sub _extract_functions_from_header_file{
             map{ qq{$add_include "$_"} } qw(EXTERN.h perl.h XSUB.h);
 
         my $cppcmd = qq{$Config{cpprun} $cppflags $h_file};
-
+        # remove all the -arch options to workaround gcc errors:
+        #       "-E, -S, -save-temps and -M options are not allowed
+        #        with multiple -arch flags"
+        $cppcmd =~ s/ -arch \s* \S+ //xmsg;
         _verbose("extract functions from: $cppcmd") if _VERBOSE;
         `$cppcmd`;
     };
@@ -743,7 +759,7 @@ package
     MY;
 
 # XXX: We must append to PM inside ExtUtils::MakeMaker->new().
-sub init_PM{
+sub init_PM {
     my $self = shift;
 
     $self->SUPER::init_PM(@_);
@@ -770,7 +786,22 @@ sub const_cccmd {
 
     return $cccmd
 }
+
+sub xs_c {
+    my($self) = @_;
+    my $mm = $self->SUPER::xs_c();
+    $mm =~ s/ \.c /.cpp/xmsg if $UseCplusplus;
+    return $mm;
+}
+
+sub xs_o {
+    my($self) = @_;
+    my $mm = $self->SUPER::xs_o();
+    $mm =~ s/ \.c /.cpp/xmsg if $UseCplusplus;
+    return $mm;
+}
+
 1;
 __END__
 
-#line 984
+#line 1023
