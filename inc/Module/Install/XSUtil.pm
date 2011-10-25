@@ -3,7 +3,7 @@ package Module::Install::XSUtil;
 
 use 5.005_03;
 
-$VERSION = '0.41';
+$VERSION = '0.42';
 
 use Module::Install::Base;
 @ISA     = qw(Module::Install::Base);
@@ -483,8 +483,6 @@ sub cc_src_paths{
     return;
 }
 
-sub cc_inc_paths { goto &cc_include_paths }
-
 sub cc_include_paths{
     my($self, @dirs) = @_;
 
@@ -804,4 +802,4 @@ sub xs_o {
 1;
 __END__
 
-#line 1023
+#line 1025
