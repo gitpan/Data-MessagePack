@@ -49,6 +49,7 @@ t/17_canonical.t
 t/18_new_interface.t
 t/19_utf8_property.t
 t/20_de.t
+t/21_dirty_float.t
 t/40_threads.t
 t/50_leaktrace.t
 t/data.pl

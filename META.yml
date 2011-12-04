@@ -4,12 +4,12 @@ author:
   - 'Tokuhiro Matsuno'
 build_requires:
   Devel::PPPort: 3.19
-  ExtUtils::MakeMaker: 6.59
+  ExtUtils::MakeMaker: 6.62
   Test::More: 0.94
   Test::Requires: 0
 configure_requires:
   Devel::PPPort: 3.19
-  ExtUtils::MakeMaker: 6.59
+  ExtUtils::MakeMaker: 6.62
   ExtUtils::ParseXS: 2.21
 distribution_type: module
 dynamic_config: 1
@@ -30,4 +30,4 @@ requires:
 resources:
   license: http://dev.perl.org/licenses/
   repository: http://github.com/msgpack/msgpack-perl
-version: 0.38_02
+version: 0.39
