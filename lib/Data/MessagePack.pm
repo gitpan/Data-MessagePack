@@ -3,7 +3,7 @@ use strict;
 use warnings;
 use 5.008001;
 
-our $VERSION = '0.42';
+our $VERSION = '0.43';
 
 sub true () {
     require Data::MessagePack::Boolean;
@@ -234,6 +234,16 @@ buffers while some other bindings (such as Ruby binding) does. This limitation
 will astonish those who try to unpack byte streams with an arbitrary buffer size
 (e.g. C<< while(read($socket, $buffer, $arbitrary_buffer_size)) { ... } >>).
 We should implement the internal buffer for the unpacker.
+
+=back
+
+=head1 FAQ
+
+=over 4
+
+=item Why does Data::MessagePack have pure perl implementations?
+
+msgpack C library uses C99 feature, VC++6 does not support C99. So pure perl version is needed for VC++ users.
 
 =back
 
