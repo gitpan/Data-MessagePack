@@ -52,6 +52,7 @@ t/20_de.t
 t/21_dirty_float.t
 t/22_pid_pack_unpack.t
 t/23-empty-key.t
+t/24_tied.t
 t/40_threads.t
 t/50_leaktrace.t
 t/data.pl

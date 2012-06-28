@@ -30,4 +30,4 @@ requires:
 resources:
   license: http://dev.perl.org/licenses/
   repository: http://github.com/msgpack/msgpack-perl
-version: 0.44
+version: 0.45
