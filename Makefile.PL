@@ -1,11 +1,10 @@
 # Usage: Makefile.PL --pp # disable XS
 #        Makefile.PL -g   # add -g to the compiler and disable optimization flags
 use inc::Module::Install;
-use Module::Install::XSUtil 0.36;
+use Module::Install::XSUtil 0.44;
 
 name 'Data-MessagePack';
 all_from 'lib/Data/MessagePack.pm';
-readme_from('lib/Data/MessagePack.pm');
 
 test_requires('Test::More' => 0.94); # done_testing
 test_requires('Test::Requires');
@@ -27,6 +26,10 @@ if ( $] >= 5.008005 and want_xs() ) {
         cc_warnings;
         cc_include_paths('include');
         cc_src_paths('xs-src');
+	postamble (qq{
+xs-src/pack.o : xshelper.h include/msgpack/pack_define.h include/msgpack/pack_template.h include/msgpack/sysdep.h
+xs-src/unpack.o : xshelper.h include/msgpack/unpack_define.h include/msgpack/unpack_template.h include/msgpack/sysdep.h
+});
 
         if($Module::Install::AUTHOR) {
             postamble qq{test :: test_pp\n\n};
