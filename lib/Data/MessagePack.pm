@@ -3,7 +3,7 @@ use strict;
 use warnings;
 use 5.008001;
 
-our $VERSION = '0.47';
+our $VERSION = '0.48';
 
 sub true () {
     require Data::MessagePack::Boolean;
@@ -60,7 +60,7 @@ __END__
 
 =head1 NAME
 
-Data::MessagePack - MessagePack serialising/deserialising
+Data::MessagePack - MessagePack serializing/deserializing
 
 =head1 SYNOPSIS
 

@@ -1,5 +1,5 @@
 ---
-abstract: 'MessagePack serialising/deserialising'
+abstract: 'MessagePack serializing/deserializing'
 author:
   - 'Tokuhiro Matsuno'
 build_requires:
@@ -30,4 +30,4 @@ requires:
 resources:
   license: http://dev.perl.org/licenses/
   repository: http://github.com/msgpack/msgpack-perl
-version: 0.47
+version: 0.48
